@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIHS-2026 Smart Bracelet - Ultra Photorealistic 3D Exploded View</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js, OrbitControls & FontLoader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Cairo', sans-serif;
+            box-sizing: border-box;
+        }
+        .mono-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.8);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #06b6d4;
+            border-radius: 4px;
+        }
+        #webgl-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            background: radial-gradient(circle at center, #1e293b 0%, #090d16 100%);
+        }
+        .glass-card {
+            background: rgba(11, 17, 32, 0.82);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(6, 182, 212, 0.25);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+        .glow-cyan {
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.35);
+        }
+        /* 3D Label Pins overlay */
+        .annotation-pin {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            pointer-events: auto;
+            cursor: pointer;
+            transition: opacity 0.3s ease, transform 0.2s ease;
+            z-index: 10;
+        }
+        .annotation-pin:hover {
+            transform: translate(-50%, -50%) scale(1.08);
+        }
+        .pin-line {
+            position: absolute;
+            background: rgba(6, 182, 212, 0.8);
+            height: 1.5px;
+            transform-origin: 0 0;
+            pointer-events: none;
+            z-index: 9;
+            box-shadow: 0 0 6px rgba(6, 182, 212, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 overflow-hidden select-none">
+
+    <!-- 3D Canvas -->
+    <div id="webgl-container"></div>
+
+    <!-- Dynamic 3D Annotation Pins Overlay Container -->
+    <div id="annotations-overlay" class="absolute inset-0 pointer-events-none z-20 overflow-hidden"></div>
+
+    <!-- UI Overlay Layer -->
+    <div class="relative z-30 w-full h-screen pointer-events-none flex flex-col justify-between p-4 md:p-6">
+
+        <!-- Top Navigation Bar -->
+        <header class="flex justify-between items-start pointer-events-auto">
+            <div class="glass-card p-4 rounded-2xl flex items-center gap-3 border-cyan-500/30">
+                <div class="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-400/40 flex items-center justify-center text-cyan-400">
+                    <i data-lucide="layers" class="w-6 h-6 animate-pulse"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-black text-xl md:text-2xl tracking-wide text-white">AIHS-2026</h1>
+                        <span class="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-0.5 rounded-full border border-cyan-500/40 font-bold">نموذج تفكيكي واقعي</span>
+                    </div>
+                    <p class="text-xs text-slate-300">السوار الذكي الثوري لمراقبة صحة الحجاج - التصميم الهندسي المتكامل</p>
+                </div>
+            </div>
+
+            <!-- Top Specs Quick Badges -->
+            <div class="hidden lg:flex items-center gap-3">
+                <div class="glass-card px-4 py-2 rounded-xl text-center">
+                    <span class="text-[10px] text-slate-400 block">الهيكل الخارجي</span>
+                    <span class="text-xs font-bold text-cyan-400">TPU + Solar Grid</span>
+                </div>
+                <div class="glass-card px-4 py-2 rounded-xl text-center">
+                    <span class="text-[10px] text-slate-400 block">الحساس الطبي</span>
+                    <span class="text-xs font-bold text-emerald-400">MAX86150 Dual PPG</span>
+                </div>
+                <div class="glass-card px-4 py-2 rounded-xl text-center">
+                    <span class="text-[10px] text-slate-400 block">البطارية والوزن</span>
+                    <span class="text-xs font-bold text-amber-400">1200mAh / 45g</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Middle Section: Active Component Spec Card Drawer -->
+        <main class="flex justify-between items-center my-auto pointer-events-none">
+            <div id="spec-card" class="glass-card p-5 rounded-2xl w-80 md:w-96 pointer-events-auto transition-all duration-500 transform translate-x-0">
+                <div class="flex justify-between items-start mb-3">
+                    <span id="card-badge" class="bg-cyan-950 text-cyan-400 border border-cyan-800 text-[10px] px-2.5 py-0.5 rounded-full mono-font font-bold">
+                        COMPONENT #01
+                    </span>
+                    <span id="card-type" class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md">
+                        طبي / إلكتروني
+                    </span>
+                </div>
+
+                <h2 id="card-title" class="text-lg font-black text-white mb-1">انقر على أي قطعة لمعاينة تفاصيلها</h2>
+                <p id="card-subtitle" class="text-xs text-cyan-400 mono-font mb-3">Interactive Assembly Inspection</p>
+
+                <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 mb-3">
+                    <p id="card-desc" class="text-xs text-slate-300 leading-relaxed">
+                        استخدم شريط التحكم السفلي لتفكيك السوار ثلاثي الأبعاد برؤية واقعية تحاكي المخطط المرجعي. يمكنك الضغط على القطع أو التسميات لمعاينتها بالكامل.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-800/80">
+                        <span class="text-[10px] text-slate-400 block">الموديل / المادة:</span>
+                        <span id="card-model" class="text-cyan-300 font-semibold mono-font">AIHS-2026 Specs</span>
+                    </div>
+                    <div class="bg-slate-900/60 p-2 rounded-lg border border-slate-800/80">
+                        <span class="text-[10px] text-slate-400 block">الوظيفة الأساسية:</span>
+                        <span id="card-power" class="text-amber-300 font-semibold">تكامل المعالجة</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Bottom Controls Bar -->
+        <footer class="glass-card p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 pointer-events-auto border-cyan-500/30">
+            <!-- Left Action Buttons -->
+            <div class="flex items-center gap-3 w-full md:w-auto">
+                <button id="auto-explode-btn" class="flex-1 md:flex-none bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-2 glow-cyan">
+                    <i data-lucide="play" class="w-4 h-4"></i>
+                    <span id="auto-btn-txt">تشغيل أنيميشن التفكيك</span>
+                </button>
+                <button id="reset-cam-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2.5 rounded-xl transition-all border border-slate-700" title="إعادة ضبط الكاميرا">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                </button>
+                <button id="toggle-labels-btn" class="bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 p-2.5 rounded-xl transition-all border border-cyan-800" title="إخفاء/إظهار التسميات">
+                    <i data-lucide="tag" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Center Explode Progress Slider -->
+            <div class="flex-1 w-full max-w-md flex items-center gap-3 bg-slate-900/80 px-4 py-2 rounded-xl border border-slate-800">
+                <span class="text-xs font-bold text-cyan-400 whitespace-nowrap flex items-center gap-1">
+                    <i data-lucide="unfold-vertical" class="w-4 h-4"></i> التفكيك:
+                </span>
+                <input id="explode-slider" type="range" min="0" max="100" value="45" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                <span id="explode-percent" class="text-xs font-bold text-cyan-300 mono-font w-10 text-left">45%</span>
+            </div>
+
+            <!-- Right Presets View Buttons -->
+            <div class="flex items-center gap-2">
+                <button class="view-preset bg-slate-800 hover:bg-cyan-950 text-slate-300 hover:text-cyan-300 text-xs px-3 py-2 rounded-lg border border-slate-700 transition-all" data-preset="diag">منظور</button>
+                <button class="view-preset bg-slate-800 hover:bg-cyan-950 text-slate-300 hover:text-cyan-300 text-xs px-3 py-2 rounded-lg border border-slate-700 transition-all" data-preset="front">أمامي</button>
+                <button class="view-preset bg-slate-800 hover:bg-cyan-950 text-slate-300 hover:text-cyan-300 text-xs px-3 py-2 rounded-lg border border-slate-700 transition-all" data-preset="top">علوي</button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // AIHS-2026 Reference Specification Data Array (Ordered Top-to-Bottom matching image)
+        const COMPONENT_DATA = [
+            {
+                id: "c_top_strap",
+                labelAr: "الغلاف الخارجي العلوي TPU",
+                labelEn: "MATTE BLACK TPU ENCLOSURE (TOP)",
+                model: "Hypoallergenic TPU Plastic",
+                power: "IP68 Waterproof Housing",
+                desc: "الهيكل العلوي الانسيابي المصنوع من مطاط TPU الأسود المائل للمطفي مع فتحات مخصصة للشاشات وأزرار الاستغاثة.",
+                yOffset: 3.8,
+                align: "left"
+            },
+            {
+                id: "c_display",
+                labelAr: "شاشة OLED المنحنية",
+                labelEn: "CURVED OLED DISPLAY",
+                model: "1.3\" Flexible High-Contrast OLED",
+                power: "35 mW / 1000 nits",
+                desc: "شاشة منحنية عالية الوضوح تحت أشعة الشمس المباشرة لعرض نبضات القلب (HEART RATE)، درجة الحرارة (TEMP)، ونسبة الأكسجين (SpO2).",
+                yOffset: 2.7,
+                align: "left"
+            },
+            {
+                id: "c_solar_frame",
+                labelAr: "الهيكل المعدني والخلية الشمسية",
+                labelEn: "METAL HOUSING WITH FLEXIBLE SOLAR STRIP",
+                model: "Dark Anodized Aluminum + Perovskite Solar",
+                power: "+300 mW Charging Power",
+                desc: "إطار معدني متين مدمج معه شريط شاشات شمسية مرنة على الجانب لتغذية البطارية ذاتياً بضوء الشمس.",
+                yOffset: 1.6,
+                align: "left"
+            },
+            {
+                id: "c_pcb",
+                labelAr: "اللوحة الإلكترونية والميكروتشيبس",
+                labelEn: "MAIN FLEXIBLE PCB & MICROCHIPS",
+                model: "4-Layer Flexible Polyimide PCB",
+                power: "MCU + BLE + TinyML AI",
+                desc: "اللوحة المطبوعة المرنة باللون الأخضر المليئة بالشرائح الدقيقة ومتحكمات الذكاء الاصطناعي وكشف السقوط.",
+                yOffset: 0.5,
+                align: "left"
+            },
+            {
+                id: "c_speaker",
+                labelAr: "وحدة السماعة العظمية",
+                labelEn: "BONE CONDUCTION SPEAKER MODULE",
+                model: "Piezoelectric Bone Transducer",
+                power: "Audio Haptic Guidance",
+                desc: "وحدة صوتية تعتمد التوصيل العظمي لإيصال الإرشادات والتنبيهات للحجاج كبار السن والمكفوفين دون سماعات أذن.",
+                yOffset: 0.0,
+                align: "right"
+            },
+            {
+                id: "c_sos_btn",
+                labelAr: "آلية زر SOS للطوارئ",
+                labelEn: "RED SOS BUTTON MECHANISM",
+                model: "Tactile Switch with Silicone Seal",
+                power: "Emergency Trigger",
+                desc: "زر طوارئ أسطواني بارز باللون الأحمر ومختوم بحلقة سيليكون مقاومة للماء لإطلاق نداء الاستغاثة فورياً.",
+                yOffset: -0.6,
+                align: "right"
+            },
+            {
+                id: "c_battery",
+                labelAr: "بطارية الليثيوم الصلبة",
+                labelEn: "SOLID-STATE BATTERY PACK",
+                model: "1200mAh Solid-State Polymer",
+                power: "7-10 Days Autonomy",
+                desc: "بطارية ذات غلاف فضي معدني مقاومة للانفجار ودرجات الحرارة الشديدة توفر تغذية تشغيلية طويلة الأمد.",
+                yOffset: -1.2,
+                align: "left"
+            },
+            {
+                id: "c_sensor_ppg",
+                labelAr: "حساس النبض والأكسجين PPG",
+                labelEn: "MAX86150 PPG OPTICAL PULSE SENSOR",
+                model: "Maxim MAX86150 Dual Green/IR",
+                power: "Medical Grade PPG & SpO2",
+                desc: "المستشعر الطبي الضوئي المزدوج المصنوع من معدن مصقول مع نافذتين مضيئتين بلون أخضر لقياس نبض القلب ونسبة الأكسجين.",
+                yOffset: -2.3,
+                align: "right"
+            },
+            {
+                id: "c_bottom_strap",
+                labelAr: "الحزام السفلي الملامس للبشرة",
+                labelEn: "INNER FLEXIBLE TPU STRAP WITH SENSOR CONTACT",
+                model: "Hypoallergenic Skin TPU Base",
+                power: "IP68 Sensor Cutout Window",
+                desc: "السوار السفلي الملامس للمعصم والذي يحتوي على فتحات دقيقة يبرز منها مستشعر PPG لملامسة البشرة مباشرة.",
+                yOffset: -3.5,
+                align: "left"
+            }
+        ];
+
+        // Three.js Core Variables
+        let scene, camera, renderer, controls;
+        let componentMeshMap = new Map();
+        let annotationElements = [];
+        let explodeProgress = 0.45;
+        let isAutoPlay = false;
+        let showLabels = true;
+        let activeSelectedId = "c_pcb";
+
+        function initScene() {
+            const container = document.getElementById('webgl-container');
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x090d16, 0.025);
+
+            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(11, 6, 14);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.35;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 35;
+            controls.minDistance = 4;
+            controls.target.set(0, 0, 0);
+
+            // Lighting Setup for Photorealistic Metal & TPU Shading
+            const ambLight = new THREE.AmbientLight(0xffffff, 0.9);
+            scene.add(ambLight);
+
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.2);
+            dirLight1.position.set(12, 20, 15);
+            dirLight1.castShadow = true;
+            dirLight1.shadow.mapSize.width = 2048;
+            dirLight1.shadow.mapSize.height = 2048;
+            scene.add(dirLight1);
+
+            const cyanRimLight = new THREE.PointLight(0x06b6d4, 3, 25);
+            cyanRimLight.position.set(-10, 5, -8);
+            scene.add(cyanRimLight);
+
+            const blueFillLight = new THREE.DirectionalLight(0x3b82f6, 1.2);
+            blueFillLight.position.set(-10, -10, -5);
+            scene.add(blueFillLight);
+
+            // Build Photorealistic Components
+            buildBraceletComponents();
+
+            // Create Dynamic Overlay Annotation Pins
+            createAnnotationPins();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            setupUIInteractions();
+
+            // Start Render Loop
+            animate();
+        }
+
+        function buildBraceletComponents() {
+            // Materials Definition
+            const matteTpuMat = new THREE.MeshStandardMaterial({
+                color: 0x151922,
+                roughness: 0.75,
+                metalness: 0.1
+            });
+
+            const darkMetalMat = new THREE.MeshStandardMaterial({
+                color: 0x222936,
+                roughness: 0.25,
+                metalness: 0.85
+            });
+
+            const pcbGreenMat = new THREE.MeshStandardMaterial({
+                color: 0x0d5c2e,
+                roughness: 0.35,
+                metalness: 0.2
+            });
+
+            const goldMat = new THREE.MeshStandardMaterial({
+                color: 0xd4af37,
+                roughness: 0.2,
+                metalness: 0.9
+            });
+
+            const silverFoilMat = new THREE.MeshStandardMaterial({
+                color: 0xd1d5db,
+                roughness: 0.2,
+                metalness: 0.85
+            });
+
+            const redSosMat = new THREE.MeshStandardMaterial({
+                color: 0xd97706,
+                emissive: 0xd97706,
+                emissiveIntensity: 0.3,
+                roughness: 0.3,
+                metalness: 0.4
+            });
+
+            const solarGridMat = new THREE.MeshStandardMaterial({
+                color: 0x1e293b,
+                roughness: 0.2,
+                metalness: 0.7
+            });
+
+            // 1. TOP TPU SHELL (Layer 1)
+            const topStrapGroup = new THREE.Group();
+            const topShape = new THREE.TorusGeometry(3.2, 0.45, 20, 80, Math.PI * 0.95);
+            const topMesh = new THREE.Mesh(topShape, matteTpuMat);
+            topMesh.rotation.x = Math.PI / 2;
+            topMesh.rotation.z = Math.PI * 0.02;
+            topStrapGroup.add(topMesh);
+            registerComponent("c_top_strap", topStrapGroup, 3.8);
+
+            // 2. CURVED OLED DISPLAY (Layer 2)
+            const displayGroup = new THREE.Group();
+            const dispGeom = new THREE.BoxGeometry(2.8, 0.08, 1.5);
+            const dispMat = new THREE.MeshStandardMaterial({ color: 0x020617, roughness: 0.1, metalness: 0.9 });
+            const dispMesh = new THREE.Mesh(dispGeom, dispMat);
+
+            // Canvas texture for live OLED text metrics
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(0, 0, 512, 256);
+            ctx.font = 'bold 36px "JetBrains Mono", monospace';
+            ctx.fillStyle = '#ef4444';
+            ctx.fillText('HEART RATE: 78 BPM', 30, 70);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillText('TEMP: 37.1 °C', 30, 140);
+            ctx.fillStyle = '#10b981';
+            ctx.fillText('SpO2: 98%', 30, 210);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const screenMat = new THREE.MeshBasicMaterial({ map: texture });
+            const screenPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.3), screenMat);
+            screenPlane.rotation.x = -Math.PI / 2;
+            screenPlane.position.y = 0.05;
+            displayGroup.add(dispMesh, screenPlane);
+            registerComponent("c_display", displayGroup, 2.7);
+
+            // 3. MIDDLE METAL FRAME & SOLAR STRIP (Layer 3)
+            const solarGroup = new THREE.Group();
+            const frameGeom = new THREE.BoxGeometry(3.6, 0.25, 2.0);
+            const frameMesh = new THREE.Mesh(frameGeom, darkMetalMat);
+            
+            // Solar Cell Grid Pattern on Strap Curve
+            const solarGeom = new THREE.BoxGeometry(1.8, 0.04, 1.4);
+            const solarMesh = new THREE.Mesh(solarGeom, solarGridMat);
+            solarMesh.position.set(-1.0, 0.13, 0);
+            solarGroup.add(frameMesh, solarMesh);
+            registerComponent("c_solar_frame", solarGroup, 1.6);
+
+            // 4. MAIN FLEXIBLE PCB & CHIPS (Layer 4)
+            const pcbGroup = new THREE.Group();
+            const pcbBase = new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.08, 1.7), pcbGreenMat);
+            pcbGroup.add(pcbBase);
+
+            // Main MCU / Edge AI Chip
+            const mcuGeom = new THREE.BoxGeometry(0.9, 0.1, 0.9);
+            const mcuMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2 });
+            const mcu = new THREE.Mesh(mcuGeom, mcuMat);
+            mcu.position.set(-0.6, 0.08, 0);
+            pcbGroup.add(mcu);
+
+            // Gold Contact Pads and SMD Components
+            for(let i = 0; i < 16; i++) {
+                const pad = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.04, 0.08), goldMat);
+                pad.position.set((Math.random() - 0.5) * 2.8, 0.05, (Math.random() - 0.5) * 1.3);
+                pcbGroup.add(pad);
+            }
+            registerComponent("c_pcb", pcbGroup, 0.5);
+
+            // 5. BONE CONDUCTION SPEAKER (Layer 5)
+            const speakerGroup = new THREE.Group();
+            const spkGeom = new THREE.CylinderGeometry(0.35, 0.35, 0.18, 32);
+            const spkMesh = new THREE.Mesh(spkGeom, darkMetalMat);
+            spkMesh.rotation.z = Math.PI / 2;
+            spkMesh.position.set(1.8, 0, -0.4);
+            speakerGroup.add(spkMesh);
+            registerComponent("c_speaker", speakerGroup, 0.0);
+
+            // 6. RED SOS EMERGENCY BUTTON (Layer 6)
+            const sosGroup = new THREE.Group();
+            const btnGeom = new THREE.CylinderGeometry(0.28, 0.28, 0.35, 32);
+            const btnMesh = new THREE.Mesh(btnGeom, redSosMat);
+            btnMesh.rotation.z = Math.PI / 2;
+            btnMesh.position.set(1.8, 0, 0.4);
+            sosGroup.add(btnMesh);
+            registerComponent("c_sos_btn", sosGroup, -0.6);
+
+            // 7. SOLID-STATE BATTERY PACK (Layer 7)
+            const batGroup = new THREE.Group();
+            const batGeom = new THREE.BoxGeometry(2.6, 0.22, 1.4);
+            const batMesh = new THREE.Mesh(batGeom, silverFoilMat);
+            batGroup.add(batMesh);
+            registerComponent("c_battery", batGroup, -1.2);
+
+            // 8. MAX86150 MEDICAL PPG OPTICAL SENSOR (Layer 8)
+            const ppgGroup = new THREE.Group();
+            const ppgBase = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.8), darkMetalMat);
+            
+            // Dual Green Illuminated LED Windows
+            const ledGeom = new THREE.CylinderGeometry(0.12, 0.12, 0.15, 16);
+            const ledMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+            const led1 = new THREE.Mesh(ledGeom, ledMat);
+            led1.position.set(-0.3, -0.02, 0);
+            const led2 = led1.clone();
+            led2.position.set(0.3, -0.02, 0);
+
+            ppgGroup.add(ppgBase, led1, led2);
+            registerComponent("c_sensor_ppg", ppgGroup, -2.3);
+
+            // 9. INNER TPU STRAP BASE (Layer 9)
+            const botStrapGroup = new THREE.Group();
+            const botShape = new THREE.TorusGeometry(3.2, 0.45, 20, 80, Math.PI * 0.95);
+            const botMesh = new THREE.Mesh(botShape, matteTpuMat);
+            botMesh.rotation.x = Math.PI / 2;
+            botMesh.rotation.z = -Math.PI * 0.97;
+            botStrapGroup.add(botMesh);
+            registerComponent("c_bottom_strap", botStrapGroup, -3.5);
+
+            updateExplosionPositions();
+        }
+
+        function registerComponent(id, group, baseOffsetY) {
+            group.userData = { id: id, baseOffsetY: baseOffsetY };
+            scene.add(group);
+            componentMeshMap.set(id, group);
+        }
+
+        function updateExplosionPositions() {
+            const verticalSpread = 1.1;
+            componentMeshMap.forEach((group) => {
+                const baseOffsetY = group.userData.baseOffsetY;
+                group.position.y = baseOffsetY * explodeProgress * verticalSpread;
+            });
+        }
+
+        function createAnnotationPins() {
+            const overlay = document.getElementById('annotations-overlay');
+            overlay.innerHTML = '';
+            annotationElements = [];
+
+            COMPONENT_DATA.forEach((comp) => {
+                const pinContainer = document.createElement('div');
+                pinContainer.className = 'annotation-pin flex items-center gap-2';
+                pinContainer.dataset.id = comp.id;
+
+                const isLeft = comp.align === 'left';
+
+                const labelBox = `
+                    <div class="glass-card px-3 py-1.5 rounded-xl border border-cyan-500/40 text-right whitespace-nowrap">
+                        <div class="text-[10px] text-cyan-400 font-bold mono-font">${comp.labelEn}</div>
+                        <div class="text-xs font-black text-white">${comp.labelAr}</div>
+                    </div>
+                `;
+
+                const dot = `
+                    <div class="w-4 h-4 rounded-full bg-cyan-500/20 border-2 border-cyan-400 flex items-center justify-center">
+                        <div class="w-1.5 h-1.5 rounded-full bg-cyan-300 animate-ping"></div>
+                    </div>
+                `;
+
+                pinContainer.innerHTML = isLeft ? (labelBox + dot) : (dot + labelBox);
+
+                pinContainer.addEventListener('click', () => {
+                    selectComponent(comp.id);
+                });
+
+                overlay.appendChild(pinContainer);
+
+                annotationElements.push({
+                    id: comp.id,
+                    element: pinContainer
+                });
+            });
+        }
+
+        function updateAnnotationPositions() {
+            if (!showLabels) {
+                annotationElements.forEach(item => item.element.style.opacity = '0');
+                return;
+            }
+
+            const tempVec = new THREE.Vector3();
+
+            annotationElements.forEach(item => {
+                const group = componentMeshMap.get(item.id);
+                if (!group) return;
+
+                group.getWorldPosition(tempVec);
+
+                // Project 3D vector to 2D Screen Space
+                tempVec.project(camera);
+
+                // Check if behind camera
+                if (tempVec.z > 1) {
+                    item.element.style.opacity = '0';
+                    return;
+                }
+
+                const x = (tempVec.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-(tempVec.y * 0.5) + 0.5) * window.innerHeight;
+
+                item.element.style.left = `${x}px`;
+                item.element.style.top = `${y}px`;
+                item.element.style.opacity = '1';
+            });
+        }
+
+        function selectComponent(id) {
+            activeSelectedId = id;
+            const comp = COMPONENT_DATA.find(c => c.id === id);
+            if (!comp) return;
+
+            // Update Left Spec Card Drawer
+            document.getElementById('card-badge').textContent = comp.labelEn;
+            document.getElementById('card-title').textContent = comp.labelAr;
+            document.getElementById('card-subtitle').textContent = comp.id.toUpperCase();
+            document.getElementById('card-desc').textContent = comp.desc;
+            document.getElementById('card-model').textContent = comp.model;
+            document.getElementById('card-power').textContent = comp.power;
+
+            // Highlight selected component mesh
+            componentMeshMap.forEach((group, gId) => {
+                group.scale.set(1, 1, 1);
+                if (gId === id) {
+                    group.scale.set(1.12, 1.12, 1.12);
+                }
+            });
+        }
+
+        function setupUIInteractions() {
+            // Explode Slider Event
+            const slider = document.getElementById('explode-slider');
+            const percentTxt = document.getElementById('explode-percent');
+
+            slider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value) / 100;
+                explodeProgress = val;
+                percentTxt.textContent = `${e.target.value}%`;
+                updateExplosionPositions();
+            });
+
+            // Auto Explode Animation Button
+            const autoBtn = document.getElementById('auto-explode-btn');
+            autoBtn.addEventListener('click', () => {
+                isAutoPlay = !isAutoPlay;
+                document.getElementById('auto-btn-txt').textContent = isAutoPlay ? "إيقاف الأنيميشن" : "تشغيل أنيميشن التفكيك";
+            });
+
+            // Reset Camera
+            document.getElementById('reset-cam-btn').addEventListener('click', () => {
+                camera.position.set(11, 6, 14);
+                controls.target.set(0, 0, 0);
+            });
+
+            // Toggle Labels
+            document.getElementById('toggle-labels-btn').addEventListener('click', () => {
+                showLabels = !showLabels;
+            });
+
+            // View Presets
+            document.querySelectorAll('.view-preset').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const preset = e.target.dataset.preset;
+                    if (preset === 'top') camera.position.set(0, 18, 0.1);
+                    if (preset === 'front') camera.position.set(0, 0, 16);
+                    if (preset === 'diag') camera.position.set(11, 6, 14);
+                    controls.target.set(0, 0, 0);
+                });
+            });
+
+            // Re-init Lucide Icons
+            lucide.createIcons();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (isAutoPlay) {
+                explodeProgress += 0.005;
+                if (explodeProgress > 1.0) explodeProgress = 0.0;
+                document.getElementById('explode-slider').value = Math.round(explodeProgress * 100);
+                document.getElementById('explode-percent').textContent = `${Math.round(explodeProgress * 100)}%`;
+                updateExplosionPositions();
+            }
+
+            // Slow assembly rotation
+            scene.rotation.y += 0.002;
+
+            controls.update();
+            updateAnnotationPositions();
+            renderer.render(scene, camera);
+        }
+
+        // Initialize App on Window Load
+        window.onload = () => {
+            initScene();
+            selectComponent("c_pcb");
+        };
+    </script>
+</body>
+</html>
