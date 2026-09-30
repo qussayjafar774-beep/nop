@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIHS-2026 Smart Bracelet - Ultra Realistic 3D Exploded View</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050811; font-family: system-ui, -apple-system, sans-serif; color: #fff; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        .glass-panel { background: rgba(13, 22, 41, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .custom-slider::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #00f2fe; cursor: pointer; box-shadow: 0 0 10px #00f2fe; }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay -->
+    <div class="relative z-10 flex flex-col justify-between h-screen p-6 pointer-events-none">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-start">
+            <div class="glass-panel p-5 rounded-2xl pointer-events-auto max-w-md">
+                <div class="flex items-center space-x-3 space-x-reverse mb-2">
+                    <span class="w-3 h-3 bg-cyan-400 rounded-full animate-ping"></span>
+                    <h1 class="text-2xl font-bold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+                        AIHS-2026 System
+                    </h1>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    التصميم الهندسي التفكيكي (Exploded Assembly View) للسوار الذكي لمراقبة صحة الحجاج من أصغر مكون إلكتروني إلى الغلاف الخارجي.
+                </p>
+            </div>
+
+            <div class="glass-panel p-4 rounded-2xl pointer-events-auto text-left">
+                <span class="text-xs text-cyan-400 font-mono block">Status: Prototype Design v1.0</span>
+                <span class="text-xs text-slate-400 font-mono">Sensors Count: 12 Active Modules</span>
+            </div>
+        </div>
+
+        <!-- Component Details Card -->
+        <div id="info-card" class="glass-panel p-5 rounded-2xl pointer-events-auto max-w-md self-start my-auto transition-all duration-300 transform">
+            <h3 id="comp-title" class="text-lg font-bold text-cyan-400 mb-1">حدد جزءاً لمعاينة التفاصيل</h3>
+            <p id="comp-desc" class="text-xs text-slate-300 leading-relaxed">
+                استخدم شريط التحكم السفلي لتفكيك السوار واستكشاف طبقات التصميم من الداخل إلى الخارج.
+            </p>
+        </div>
+
+        <!-- Controls Footer -->
+        <div class="glass-panel p-5 rounded-2xl pointer-events-auto w-full max-w-2xl mx-auto flex flex-col space-y-4">
+            <div class="flex justify-between items-center text-sm">
+                <span class="text-slate-300 font-medium">نسبة تفكيك المكونات (Explode Progress):</span>
+                <span id="explode-val" class="font-mono text-cyan-400 font-bold">0%</span>
+            </div>
+            
+            <input type="range" id="explode-slider" min="0" max="100" value="0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer custom-slider">
+            
+            <div class="flex justify-between items-center pt-2 border-t border-slate-700/50">
+                <div class="flex space-x-2 space-x-reverse">
+                    <button id="btn-reset" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 rounded-lg transition">إعادة ضبط الرؤية</button>
+                    <button id="btn-auto" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-xs font-bold text-white rounded-lg shadow-lg hover:opacity-90 transition">تشغيل الأنيميشن الآلي</button>
+                </div>
+                <span class="text-[10px] text-slate-400">Developed by: Qussay Jafar - Human Medicine Student</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Three.js Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050811, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(12, 8, 15);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const cyanPoint = new THREE.PointLight(0x00f2fe, 2, 20);
+        cyanPoint.position.set(-5, 2, -5);
+        scene.add(cyanPoint);
+
+        // --- Assembly Group ---
+        const assembly = new THREE.Group();
+        scene.add(assembly);
+
+        // Component Data & Materials
+        const components = [];
+        let explodeFactor = 0;
+
+        // Materials
+        const pcbMat = new THREE.MeshStandardMaterial({ color: 0x0f381e, roughness: 0.3, metalness: 0.2 });
+        const chipMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2, metalness: 0.8 });
+        const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.1, metalness: 0.9 });
+        const sensorGlassMat = new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 0.1, transmission: 0.9, opacity: 1, transparent: true });
+        const tpuMat = new THREE.MeshStandardMaterial({ color: 0x1a1d24, roughness: 0.6, metalness: 0.1 });
+        const solarMat = new THREE.MeshStandardMaterial({ color: 0x112244, roughness: 0.2, metalness: 0.7 });
+        const sosMat = new THREE.MeshStandardMaterial({ color: 0xdd2222, roughness: 0.3, metalness: 0.2 });
+
+        // Helper to register components
+        function addPart(name, desc, mesh, offsetVector) {
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData = { name, desc, basePos: mesh.position.clone(), offset: offsetVector };
+            assembly.add(mesh);
+            components.push(mesh);
+        }
+
+        // --- BUILD COMPONENTS (From Smallest to Largest) ---
+
+        // 1. PCB & Microcomponents (Core Center)
+        const pcbGroup = new THREE.Group();
+        const pcbBase = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.1, 1.8), pcbMat);
+        pcbGroup.add(pcbBase);
+
+        // Micro Chips (Nordic MCU, Accelerometer, Charger IC)
+        const mcu = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.08, 0.8), chipMat);
+        mcu.position.set(-0.8, 0.08, 0);
+        pcbGroup.add(mcu);
+
+        const imu = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 0.4), chipMat);
+        imu.position.set(0.5, 0.07, 0.4);
+        pcbGroup.add(imu);
+
+        // Micro SMD Capacitors/Resistors
+        for (let i = 0; i < 12; i++) {
+            const smd = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.05), goldMat);
+            smd.position.set((Math.random() - 0.5) * 3, 0.06, (Math.random() - 0.5) * 1.4);
+            pcbGroup.add(smd);
+        }
+        addPart("1. اللوحة المطبوعة والشريحة الرئيسية (Flexible PCB & MCU)", "تتكون من متحكم nRF52840 منخفض الطاقة مع المقاومات والشرائح الدقيقة لبناء المعالجة الحافية TinyML.", pcbGroup, new THREE.Vector3(0, -1.5, 0));
+
+        // 2. Medical Sensors Layer (Bottom Assembly)
+        const sensorGroup = new THREE.Group();
+        const ppgBase = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.15, 0.8), chipMat);
+        const ppgLens1 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.18, 16), sensorGlassMat);
+        ppgLens1.position.set(-0.3, 0, 0);
+        const ppgLens2 = ppgLens1.clone();
+        ppgLens2.position.set(0.3, 0, 0);
+        sensorGroup.add(ppgBase, ppgLens1, ppgLens2);
+        sensorGroup.position.set(0, -0.2, 0);
+        addPart("2. مجموعة المستشعرات الطبية (MAX86150 PPG & Temp Sensor)", "تضم مستشعر نبضات القلب والأكسجين متعدد الموجات وحساس الحرارة الطبية الملامس للبشرة مباشرة.", sensorGroup, new THREE.Vector3(0, -3.5, 0));
+
+        // 3. Battery Module
+        const battery = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.25, 1.4), new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.8, roughness: 0.2 }));
+        battery.position.set(0, 0.3, 0);
+        addPart("3. البطارية الصلبة (Solid-State Battery 1200mAh)", "بطارية متطورة توفر طاقة تشغيل تدوم من 7 إلى 10 أيام متواصلة مع مقاومة للحرارة الشديدة.", battery, new THREE.Vector3(0, 0.5, 0));
+
+        // 4. OLED Display
+        const displayGroup = new THREE.Group();
+        const dispFrame = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.08, 1.6), chipMat);
+        const dispGlass = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.02, 1.4), new THREE.MeshStandardMaterial({ color: 0x001122, roughness: 0.1, metalness: 0.9 }));
+        dispGlass.position.y = 0.05;
+        displayGroup.add(dispFrame, dispGlass);
+        displayGroup.position.set(0, 0.6, 0);
+        addPart("4. شاشة OLED منحنية عالية التباين", "تعرض قراءات نبضات القلب، الحرارة، ونسبة الأكسجين بوضوح تحت أشعة الشمس المباشرة.", displayGroup, new THREE.Vector3(0, 2.5, 0));
+
+        // 5. Flexible Solar Panel
+        const solarPanel = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.04, 1.2), solarMat);
+        solarPanel.position.set(-2.5, 0.5, 0);
+        addPart("5. الخلية الشمسية المرنة (Perovskite Solar Film)", "تولّد الطاقة ذاتياً من أشعة الشمس لتغذية البطارية باستمرار أثناء أداء الشعائر.", solarPanel, new THREE.Vector3(-3, 2, 0));
+
+        // 6. SOS Button & Bone Conduction Speaker
+        const sideControls = new THREE.Group();
+        const sosBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.4, 32), sosMat);
+        sosBtn.rotation.z = Math.PI / 2;
+        sosBtn.position.set(1.8, 0.3, 0.5);
+
+        const speaker = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.1, 32), chipMat);
+        speaker.rotation.z = Math.PI / 2;
+        speaker.position.set(1.8, 0.3, -0.5);
+
+        sideControls.add(sosBtn, speaker);
+        addPart("6. زر الطوارئ SOS والسماعة العظمية", "زر إغفال بارز للمستجيب الأول وسماعة توصيل عظمي لتوجيه كبار السن والمكفوفين بالصوت.", sideControls, new THREE.Vector3(3.5, 0, 0));
+
+        // 7. Outer TPU Wristband (Largest Component)
+        const strapShape = new THREE.TorusGeometry(3.2, 0.4, 16, 100, Math.PI * 1.85);
+        const strapMesh = new THREE.Mesh(strapShape, tpuMat);
+        strapMesh.rotation.x = Math.PI / 2;
+        strapMesh.rotation.y = Math.PI;
+        addPart("7. الهيكل الخارجي وسوار TPU المرن (Outer Enclosure)", "غلاف خارجي مريح خفيف الوزن (45g) مضاد للحساسية والعرق ومقاوم للماء معيار IP68.", strapMesh, new THREE.Vector3(0, 0, 5));
+
+        // --- Interaction & Animation Logic ---
+        const slider = document.getElementById('explode-slider');
+        const explodeValText = document.getElementById('explode-val');
+        const compTitle = document.getElementById('comp-title');
+        const compDesc = document.getElementById('comp-desc');
+
+        function updateExplosion(val) {
+            explodeFactor = val / 100;
+            explodeValText.innerText = `${Math.round(val)}%`;
+
+            components.forEach(mesh => {
+                const targetPos = mesh.userData.basePos.clone().addScaledVector(mesh.userData.offset, explodeFactor);
+                mesh.position.copy(targetPos);
+            });
+        }
+
+        slider.addEventListener('input', (e) => updateExplosion(e.target.value));
+
+        // Raycasting for object selection
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('pointerdown', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(components, true);
+
+            if (intersects.length > 0) {
+                let obj = intersects[0].object;
+                while (obj.parent && !obj.userData.name) {
+                    obj = obj.parent;
+                }
+                if (obj.userData.name) {
+                    compTitle.innerText = obj.userData.name;
+                    compDesc.innerText = obj.userData.desc;
+                }
+            }
+        });
+
+        // Controls
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            slider.value = 0;
+            updateExplosion(0);
+            camera.position.set(12, 8, 15);
+            controls.reset();
+        });
+
+        let isAutoPlay = false;
+        let autoDir = 1;
+        document.getElementById('btn-auto').addEventListener('click', () => {
+            isAutoPlay = !isAutoPlay;
+        });
+
+        // --- Render Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (isAutoPlay) {
+                let currentVal = parseFloat(slider.value);
+                currentVal += 0.4 * autoDir;
+                if (currentVal >= 100 || currentVal <= 0) autoDir *= -1;
+                slider.value = currentVal;
+                updateExplosion(currentVal);
+            }
+
+            assembly.rotation.y += 0.002;
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
